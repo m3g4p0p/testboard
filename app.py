@@ -2,6 +2,10 @@
 # visit http://127.0.0.1:8050/ in your web browser.
 
 from dash import Dash, html, dcc
+from dash import ctx
+from dash import Input
+from dash import Output
+from dash import State
 import dash_bootstrap_components as dbc
 import plotly.express as px
 import pandas as pd
@@ -19,20 +23,49 @@ df = pd.DataFrame({
     "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
 })
 
-fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
+figures = {
+    '#spam': px.bar(df, x="Fruit", y="Amount", color="City", barmode="group"),
+    '#eggs': px.bar(df, x="Amount", y="Fruit", color="City", barmode="group"),
+}
 
 app.layout = html.Div(children=[
-    html.H1(children='Hello Dash'),
+    dcc.Location('location'),
+    dcc.Store('session-storage', 'session'),
 
-    html.Div(children='''
-        Dash: A web application framework for your data.
-    '''),
+    dbc.Nav([
+        dbc.NavItem(dbc.NavLink('spam', href='#spam')),
+        dbc.NavItem(dbc.NavLink('eggs', href='#eggs')),
+    ]),
 
-    dcc.Graph(
-        id='example-graph',
-        figure=fig
-    )
+    dbc.Container([
+        html.H1(children='Hello Dash'),
+
+        html.Div(children='''
+            Dash: A web application framework for your data.
+        '''),
+
+        dcc.Graph(
+            id='example-graph',
+        )
+    ]),
 ])
+
+
+@app.callback(
+    Output('example-graph', 'figure'),
+    Output('session-storage', 'data'),
+    Input('location', 'hash'),
+    State('session-storage', 'data'),
+)
+def handle_hash(value, data):
+    if data is None:
+        data = {}
+
+    data.setdefault(value, 0)
+    data[value] += 1
+
+    return figures[value], data
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
