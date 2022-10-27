@@ -6,12 +6,15 @@ from dash import ctx
 from dash import Input
 from dash import Output
 from dash import State
+from plotly_resampler import FigureResampler
+from trace_updater import TraceUpdater
 import dash_bootstrap_components as dbc
 import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 
 app = Dash(
-    __name__, 
+    __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
 )
 
@@ -23,10 +26,46 @@ df = pd.DataFrame({
     "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
 })
 
-figures = {
-    '#spam': px.bar(df, x="Fruit", y="Amount", color="City", barmode="group"),
-    '#eggs': px.bar(df, x="Amount", y="Fruit", color="City", barmode="group"),
+
+def get_data(stop):
+    return pd.DataFrame({
+        "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
+        "Amount": [4, 1, 2, 2, 4, 5],
+        "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
+    }).iloc[:int(stop)]
+
+
+def create_spam(data):
+    print('create spam')
+    return px.bar(
+        data,
+        x="Fruit",
+        y="Amount",
+        color="City",
+        barmode="group",
+    )
+
+
+def create_eggs(data):
+    print('create eggs')
+    return px.bar(
+        data,
+        x="Amount",
+        y="Fruit",
+        color="City",
+        barmode="group",
+    )
+
+
+figure_factories = {
+    '#spam': create_spam,
+    '#eggs': create_eggs,
 }
+
+slider = dcc.Slider(1, len(df), value=len(df), step=1)
+fig = FigureResampler(go.Figure())
+graph_1 = dcc.Graph(figure=fig)
+graph_2 = dcc.Graph()
 
 app.layout = html.Div(children=[
     dcc.Location('location'),
@@ -44,27 +83,26 @@ app.layout = html.Div(children=[
             Dash: A web application framework for your data.
         '''),
 
-        dcc.Graph(
-            id='example-graph',
-        )
+        html.Div(slider),
+        html.Div(graph_1),
+        html.Div(graph_2),
     ]),
 ])
 
 
 @app.callback(
-    Output('example-graph', 'figure'),
-    Output('session-storage', 'data'),
+    Output(graph_1, 'figure'),
+    Output(graph_2, 'figure'),
+    Input(slider, 'value'),
     Input('location', 'hash'),
-    State('session-storage', 'data'),
 )
-def handle_hash(value, data):
-    if data is None:
-        data = {}
+def update_range(value, hash):
+    print('---')
+    data = get_data(value)
+    dynamic = figure_factories[hash]
 
-    data.setdefault(value, 0)
-    data[value] += 1
-
-    return figures[value], data
+    fig.replace(create_spam(data))
+    return fig, dynamic(data)
 
 
 if __name__ == '__main__':
