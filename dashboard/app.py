@@ -12,6 +12,8 @@ from plotly_resampler import EveryNthPoint
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
 
+from dashboard.util import process_time
+
 load_dotenv()
 
 app = Dash(__name__)
@@ -75,7 +77,8 @@ app.layout = html.Div(children=[
     Input('yaxis-column', 'value'),
     Input('year-slider', 'value'),
 )
-def update_graph(yaxis_column, year_range):
+@process_time
+def update_resampled(yaxis_column, year_range):
     fig_resampled.replace(go.Figure())
 
     fig_resampled.add_trace(
@@ -94,6 +97,7 @@ def update_graph(yaxis_column, year_range):
     Input('yaxis-column', 'value'),
     Input('year-slider', 'value'),
 )
+@process_time
 def update_vanilla(yaxis_column, year_range):
     fig = go.Figure()
 
