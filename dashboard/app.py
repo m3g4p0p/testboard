@@ -103,8 +103,3 @@ def update_vanilla(yaxis_column, year_range):
     ))
 
     return fig
-
-
-if __name__ == '__main__':
-    print(result.columns)
-    app.run_server(debug=True)
