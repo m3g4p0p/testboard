@@ -19,11 +19,15 @@ app = Dash(__name__)
 data = pd.read_parquet(os.getenv(
     'PARQUET_FILE', 'data.parquet.gzip'))
 result = data.resample('600s').mean()
+min_year = result.index.min().year
+max_year = result.index.max().year
 
-fig = FigureResampler(
+fig_resampled = FigureResampler(
     go.Figure(), default_n_shown_samples=15000)
 
-fig.register_update_graph_callback(
+fig_vanilla = go.Figure()
+
+fig_resampled.register_update_graph_callback(
     app, 'example-graph', 'trace-updater')
 
 app.layout = html.Div(children=[
@@ -34,22 +38,33 @@ app.layout = html.Div(children=[
     '''),
 
     html.Div(children=[
+        dcc.Dropdown(
+            result.columns.unique(),
+            'RackMaxCellVoltVal',
+            id='yaxis-column',
+        ),
         dcc.Graph(
             id='example-graph',
-            figure=fig
+            figure=fig_resampled
+        ),
+        dcc.Graph(
+            id='vanilla-graph',
+            figure=fig_vanilla,
         ),
         TraceUpdater(
             id='trace-updater',
             gdID='example-graph',
         ),
         dcc.RangeSlider(
-            result.index[0].year,
-            result.index[-1].year,
+            min_year,
+            max_year,
             step=1,
             id='year-slider',
-            value=[result.index[0].year, result.index[-1].year],
-            marks={str(year): str(year)
-                   for year in result.index.year.unique()},
+            value=[min_year, max_year],
+            marks={
+                str(year): str(year)
+                for year in result.index.year.unique()
+            },
         )
     ]),
 ])
@@ -57,18 +72,35 @@ app.layout = html.Div(children=[
 
 @app.callback(
     Output('example-graph', 'figure'),
-    Input('year-slider', 'value')
+    Input('yaxis-column', 'value'),
+    Input('year-slider', 'value'),
 )
-def update_graph(value):
-    fig.replace(go.Figure())
+def update_graph(yaxis_column, year_range):
+    fig_resampled.replace(go.Figure())
 
-    fig.add_trace(
+    fig_resampled.add_trace(
         go.Scattergl(),
         hf_x=result.index,
-        hf_y=result['RackMinCellVoltVal'],
+        hf_y=result[yaxis_column],
         downsampler=EveryNthPoint(
             interleave_gaps=False),
     )
+
+    return fig_resampled
+
+
+@app.callback(
+    Output('vanilla-graph', 'figure'),
+    Input('yaxis-column', 'value'),
+    Input('year-slider', 'value'),
+)
+def update_vanilla(yaxis_column, year_range):
+    fig = go.Figure()
+
+    fig.add_trace(go.Scattergl(
+        x=result.index,
+        y=result[yaxis_column],
+    ))
 
     return fig
 
