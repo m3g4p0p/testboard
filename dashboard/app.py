@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, html, dcc
+from dash import Dash, html, dcc, ctx
 from dash import Input, Output
 from dotenv import load_dotenv
 from plotly_resampler import EveryNthPoint
@@ -23,14 +23,14 @@ data = pd.read_parquet(os.getenv(
 result = data.resample('600s').mean()
 min_year = result.index.min().year
 max_year = result.index.max().year
+range_store = dcc.Store()
 
 fig_resampled = FigureResampler(
     go.Figure(), default_n_shown_samples=15000)
 
-fig_vanilla = go.Figure()
-
 fig_resampled.register_update_graph_callback(
     app, 'example-graph', 'trace-updater')
+
 
 app.layout = html.Div(children=[
     html.H1(children='Hello Dash'),
@@ -46,12 +46,13 @@ app.layout = html.Div(children=[
             id='yaxis-column',
         ),
         dcc.Graph(
+            id='vanilla-graph',
+            figure=go.Figure(),
+        ),
+        dcc.Store('vanilla-store'),
+        dcc.Graph(
             id='example-graph',
             figure=fig_resampled
-        ),
-        dcc.Graph(
-            id='vanilla-graph',
-            figure=fig_vanilla,
         ),
         TraceUpdater(
             id='trace-updater',
@@ -67,9 +68,41 @@ app.layout = html.Div(children=[
                 str(year): str(year)
                 for year in result.index.year.unique()
             },
-        )
+        ),
     ]),
 ])
+
+
+@app.callback(
+    Output('vanilla-store', 'data'),
+    Input('year-slider', 'value'),
+)
+def update_range(yaxis_column):
+    fig = go.Figure()
+
+    fig.add_trace(go.Scattergl(
+        x=result.index,
+        y=result[yaxis_column],
+    ))
+
+    return fig.to_json()
+
+
+@app.callback(
+    Output('vanilla-graph', 'figure'),
+    Input('yaxis-column', 'value'),
+    Input('year-slider', 'value'),
+)
+@process_time
+def update_vanilla(yaxis_column, year_range):
+    fig = go.Figure()
+
+    fig.add_trace(go.Scattergl(
+        x=result.index,
+        y=result[yaxis_column],
+    ))
+
+    return fig
 
 
 @app.callback(
@@ -90,20 +123,3 @@ def update_resampled(yaxis_column, year_range):
     )
 
     return fig_resampled
-
-
-@app.callback(
-    Output('vanilla-graph', 'figure'),
-    Input('yaxis-column', 'value'),
-    Input('year-slider', 'value'),
-)
-@process_time
-def update_vanilla(yaxis_column, year_range):
-    fig = go.Figure()
-
-    fig.add_trace(go.Scattergl(
-        x=result.index,
-        y=result[yaxis_column],
-    ))
-
-    return fig
