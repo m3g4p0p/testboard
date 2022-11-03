@@ -1,12 +1,18 @@
 # Run this app with `python app.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
+import json
 import os
 
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from dash import Dash, html, dcc, ctx
-from dash import Input, Output
+from dash import Dash
+from dash import Input
+from dash import Output
+from dash import State
+from dash import ctx
+from dash import dcc
+from dash import html
 from dotenv import load_dotenv
 from plotly_resampler import EveryNthPoint
 from plotly_resampler import FigureResampler
@@ -23,7 +29,6 @@ data = pd.read_parquet(os.getenv(
 result = data.resample('600s').mean()
 min_year = result.index.min().year
 max_year = result.index.max().year
-range_store = dcc.Store()
 
 fig_resampled = FigureResampler(
     go.Figure(), default_n_shown_samples=15000)
@@ -49,7 +54,7 @@ app.layout = html.Div(children=[
             id='vanilla-graph',
             figure=go.Figure(),
         ),
-        dcc.Store('vanilla-store'),
+        dcc.Store('vanilla-store', 'session'),
         dcc.Graph(
             id='example-graph',
             figure=fig_resampled
@@ -75,7 +80,7 @@ app.layout = html.Div(children=[
 
 @app.callback(
     Output('vanilla-store', 'data'),
-    Input('year-slider', 'value'),
+    Input('yaxis-column', 'value'),
 )
 def update_range(yaxis_column):
     fig = go.Figure()
@@ -92,9 +97,13 @@ def update_range(yaxis_column):
     Output('vanilla-graph', 'figure'),
     Input('yaxis-column', 'value'),
     Input('year-slider', 'value'),
+    State('vanilla-store', 'data'),
 )
 @process_time
-def update_vanilla(yaxis_column, year_range):
+def update_vanilla(yaxis_column, year_range, stored):
+    if ctx.triggered_id == 'year-slider':
+        return json.loads(stored)
+
     fig = go.Figure()
 
     fig.add_trace(go.Scattergl(
