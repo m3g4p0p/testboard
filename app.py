@@ -63,6 +63,7 @@ figure_factories = {
 }
 
 slider = dcc.Slider(1, len(df), value=len(df), step=1)
+max_input = dcc.Input(type='number', value=len(df))
 fig = FigureResampler(go.Figure())
 graph_1 = dcc.Graph(figure=fig)
 graph_2 = dcc.Graph()
@@ -83,11 +84,21 @@ app.layout = html.Div(children=[
             Dash: A web application framework for your data.
         '''),
 
-        html.Div(slider),
+        html.Div([slider, max_input]),
         html.Div(graph_1),
         html.Div(graph_2),
     ]),
 ])
+
+
+@app.callback(
+    Output(slider, 'max'),
+    Output(slider, 'value'),
+    Input(max_input, 'value'),
+    State(slider, 'value')
+)
+def update_max(max_value, value):
+    return max_value, min(max_value, value)
 
 
 @app.callback(
