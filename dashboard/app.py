@@ -18,6 +18,7 @@ from plotly_resampler import EveryNthPoint
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
 
+from dashboard.components import DataFilter
 from dashboard.util import process_time
 
 load_dotenv()
@@ -45,16 +46,13 @@ app.layout = html.Div(children=[
     '''),
 
     html.Div(children=[
+        DataFilter(result, id='data-filter'),
+        # DataFilter(result),
         dcc.Dropdown(
             result.columns.unique(),
             'RackMaxCellVoltVal',
             id='yaxis-column',
         ),
-        dcc.Graph(
-            id='vanilla-graph',
-            figure=go.Figure(),
-        ),
-        dcc.Store('vanilla-store', 'session'),
         dcc.Graph(
             id='example-graph',
             figure=fig_resampled
@@ -79,44 +77,8 @@ app.layout = html.Div(children=[
 
 
 @app.callback(
-    Output('vanilla-store', 'data'),
-    Input('yaxis-column', 'value'),
-)
-def update_range(yaxis_column):
-    fig = go.Figure()
-
-    fig.add_trace(go.Scattergl(
-        x=result.index,
-        y=result[yaxis_column],
-    ))
-
-    return fig.to_json()
-
-
-@app.callback(
-    Output('vanilla-graph', 'figure'),
-    Input('yaxis-column', 'value'),
-    Input('year-slider', 'value'),
-    State('vanilla-store', 'data'),
-)
-@process_time
-def update_vanilla(yaxis_column, year_range, stored):
-    if ctx.triggered_id == 'year-slider':
-        return json.loads(stored)
-
-    fig = go.Figure()
-
-    fig.add_trace(go.Scattergl(
-        x=result.index,
-        y=result[yaxis_column],
-    ))
-
-    return fig
-
-
-@app.callback(
     Output('example-graph', 'figure'),
-    Input('yaxis-column', 'value'),
+    Input(DataFilter.ids.column('data-filter'), 'value'),
     Input('year-slider', 'value'),
 )
 @process_time
