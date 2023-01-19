@@ -68,6 +68,7 @@ app.layout = html.Div(
 # The callback used to construct and store the graph's data on the serverside
 @app.callback(
     graph.Output,
+    # Output('graph-id', 'figure'),
     Input("column-select", "value"),
     prevent_initial_call=True,
 )
@@ -77,7 +78,7 @@ def plot_graph(column):
     fig.replace(go.Figure())
     fig.add_trace(go.Scattergl(name=column), hf_x=x,
                   hf_y=df[column])
-    return fig, fig
+    return fig
 
 
 # --------------------------------- Running the app ---------------------------------
