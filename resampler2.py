@@ -67,8 +67,8 @@ app.layout = html.Div(
 # ------------------------------------ DASH logic -------------------------------------
 # The callback used to construct and store the graph's data on the serverside
 @app.callback(
-    graph.Output,
-    # Output('graph-id', 'figure'),
+    # graph.Output,
+    Output('graph-id', 'figure'),
     Input("column-select", "value"),
     prevent_initial_call=True,
 )
