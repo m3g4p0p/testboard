@@ -1,5 +1,3 @@
-from collections import namedtuple
-
 from dash import Input
 from dash import Output
 from dash import State
@@ -9,11 +7,6 @@ from dash_extensions.enrich import ServersideOutput
 from dash_extensions.enrich import callback
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
-
-StoredGraph = namedtuple(
-    'StoredGraph',
-    ['Components', 'Output'],
-)
 
 
 def stored_graph(graph_id):
@@ -47,6 +40,4 @@ def stored_graph(graph_id):
             fig_data).construct_update_data(relayout_data)
 
     components = graph, store, trace
-    output = ServersideOutput(store, 'data')
-
-    return StoredGraph(components, output)
+    return dcc.Loading(children=components)

@@ -45,7 +45,6 @@ df = pd.DataFrame({
 # --------------------------------------Globals ---------------------------------------
 app = DashProxy(__name__, transforms=[ServersideOutputTransform()])
 server = app.server
-graph = stored_graph('graph-id')
 
 # NOTE: in this example, this reference to a FigureResampler is essential to preserve
 # throughout the whole dash app! If your dash app wants to create a new go.Figure(),
@@ -59,7 +58,7 @@ app.layout = html.Div(
 
         dcc.Dropdown(df.columns, id='column-select'),
         html.Hr(),
-        *graph.Components,
+        stored_graph('graph-id'),
     ]
 )
 
