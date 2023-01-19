@@ -30,6 +30,8 @@ from dash_extensions.enrich import ServersideOutputTransform
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
 
+from lib import stored_graph
+
 # Data that will be used for the plotly-resampler figures
 x = np.arange(2_000_000)
 noisy_sin = (3 + np.sin(x / 200) + np.random.randn(len(x)) / 10) * x / 1_000
@@ -43,6 +45,7 @@ df = pd.DataFrame({
 # --------------------------------------Globals ---------------------------------------
 app = DashProxy(__name__, transforms=[ServersideOutputTransform()])
 server = app.server
+graph = stored_graph(app, 'graph-id')
 
 # NOTE: in this example, this reference to a FigureResampler is essential to preserve
 # throughout the whole dash app! If your dash app wants to create a new go.Figure(),
@@ -54,12 +57,9 @@ app.layout = html.Div(
         html.H1("plotly-resampler global variable",
                 style={"textAlign": "center"}),
 
-        dcc.Store('store'),
         dcc.Dropdown(df.columns, id='column-select'),
         html.Hr(),
-        # The graph and it's needed components to update efficiently
-        dcc.Graph(id="graph-id"),
-        TraceUpdater(id="trace-updater", gdID="graph-id"),
+        *graph.Components,
     ]
 )
 
@@ -67,10 +67,7 @@ app.layout = html.Div(
 # ------------------------------------ DASH logic -------------------------------------
 # The callback used to construct and store the graph's data on the serverside
 @app.callback(
-    [
-        Output("graph-id", "figure"),
-        ServersideOutput('store', 'data')
-    ],
+    graph.Output,
     Input("column-select", "value"),
     prevent_initial_call=True,
 )
@@ -81,20 +78,6 @@ def plot_graph(column):
     fig.add_trace(go.Scattergl(name=column), hf_x=x,
                   hf_y=df[column])
     return fig, fig
-
-
-@app.callback(
-    Output("trace-updater", "updateData"),
-    Input("graph-id", "relayoutData"),
-    # The server side cached FigureResampler per session
-    State("store", "data"),
-    prevent_initial_call=True,
-    # memoize=True,
-)
-def update_fig(relayoutdata, fig):
-    if fig is None:
-        return no_update
-    return fig.construct_update_data(relayoutdata)
 
 
 # --------------------------------- Running the app ---------------------------------
