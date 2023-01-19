@@ -6,6 +6,7 @@ from dash import State
 from dash import dcc
 from dash import no_update
 from dash_extensions.enrich import ServersideOutput
+from dash_extensions.enrich import callback
 from trace_updater import TraceUpdater
 
 StoredGraph = namedtuple(
@@ -14,12 +15,12 @@ StoredGraph = namedtuple(
 )
 
 
-def stored_graph(app, graph_id):
+def stored_graph(graph_id):
     graph = dcc.Graph(id=graph_id)
     store = dcc.Store(id='store-' + graph_id)
     trace = TraceUpdater(id='trace-' + graph_id, gdID=graph_id)
 
-    @app.callback(
+    @callback(
         Output(trace, 'updateData'),
         Input(graph, 'relayoutData'),
         State(store, 'data'),
