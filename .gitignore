@@ -1,1 +1,3 @@
 .venv
+.vscode
+file_system_store

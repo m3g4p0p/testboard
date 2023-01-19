@@ -1,22 +1,26 @@
 # Run this app with `python app.py` and
 # visit http://127.0.0.1:8050/ in your web browser.
 
-from dash import Dash, html, dcc
-from dash import ctx
+import dash_bootstrap_components as dbc
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+from dash import Dash
 from dash import Input
 from dash import Output
 from dash import State
+from dash import ctx
+from dash import dcc
+from dash import html
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
-import dash_bootstrap_components as dbc
-import plotly.express as px
-import plotly.graph_objects as go
-import pandas as pd
 
 app = Dash(
     __name__,
     external_stylesheets=[dbc.themes.BOOTSTRAP],
 )
+
+server = app.server
 
 # assume you have a "long-form" data frame
 # see https://plotly.com/python/px-arguments/ for more options
@@ -65,8 +69,10 @@ figure_factories = {
 slider = dcc.Slider(1, len(df), value=len(df), step=1)
 max_input = dcc.Input(type='number', value=len(df))
 fig = FigureResampler(go.Figure())
-graph_1 = dcc.Graph(figure=fig)
-graph_2 = dcc.Graph()
+
+fig.register_update_graph_callback(
+    app=app, graph_id="graph-id", trace_updater_id="trace-updater"
+)
 
 app.layout = html.Div(children=[
     dcc.Location('location'),
@@ -85,8 +91,8 @@ app.layout = html.Div(children=[
         '''),
 
         html.Div([slider, max_input]),
-        html.Div(graph_1),
-        html.Div(graph_2),
+        html.Div(dcc.Graph(figure=fig, id='graph-id')),
+        TraceUpdater(id="trace-updater", gdID="graph-id"),
     ]),
 ])
 
@@ -102,8 +108,7 @@ def update_max(max_value, value):
 
 
 @app.callback(
-    Output(graph_1, 'figure'),
-    Output(graph_2, 'figure'),
+    Output('graph-id', 'figure'),
     Input(slider, 'value'),
     Input('location', 'hash'),
 )
@@ -112,8 +117,8 @@ def update_range(value, hash):
     data = get_data(value)
     dynamic = figure_factories[hash]
 
-    fig.replace(create_spam(data))
-    return fig, dynamic(data)
+    fig.replace(dynamic(data))
+    return fig
 
 
 if __name__ == '__main__':
