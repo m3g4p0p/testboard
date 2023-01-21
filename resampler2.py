@@ -30,7 +30,7 @@ from dash_extensions.enrich import ServersideOutputTransform
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
 
-from lib import stored_graph
+from lib import GraphWithTraceUpdater
 
 # Data that will be used for the plotly-resampler figures
 x = np.arange(2_000_000)
@@ -58,7 +58,7 @@ app.layout = html.Div(
 
         dcc.Dropdown(df.columns, id='column-select'),
         html.Hr(),
-        stored_graph('graph-id'),
+        GraphWithTraceUpdater('graph-id'),
     ]
 )
 

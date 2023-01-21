@@ -9,21 +9,17 @@ from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
 
 
-def stored_graph(graph_id):
+def GraphWithTraceUpdater(graph_id):
     graph = dcc.Graph(id=graph_id)
-    store = dcc.Store(id='store-' + graph_id)
-
-    trace = TraceUpdater(
-        id='trace-updater-' + graph_id, gdID=graph_id)
+    store = dcc.Store(id='stored-' + graph_id)
+    trace = TraceUpdater(gdID=graph_id)
 
     @callback(
         ServersideOutput(store, 'data'),
         Input(graph, 'figure'),
+        prevent_initial_call=True,
     )
     def update_figure(fig):
-        if fig is None:
-            return no_update
-
         return fig
 
     @callback(
@@ -39,5 +35,4 @@ def stored_graph(graph_id):
         return FigureResampler(
             fig_data).construct_update_data(relayout_data)
 
-    components = graph, store, trace
-    return dcc.Loading(children=components)
+    return dcc.Loading(children=[graph, store, trace])
