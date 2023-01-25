@@ -16,12 +16,17 @@ import json
 
 import pandas as pd
 import plotly.express as px
+from celery import Celery
+from dash import CeleryManager
+from dash import Dash
 from dash import Input
 from dash import Output
 from dash import dcc
 from dash import html
 from dash_extensions.enrich import DashProxy
 from dash_extensions.enrich import ServersideOutputTransform
+
+REDIS_URL = 'redis://127.0.0.1:6379'
 
 
 def get_data():
@@ -30,8 +35,11 @@ def get_data():
 
 df = get_data()
 
-# --------------------------------------Globals ---------------------------------------
-app = DashProxy(__name__, transforms=[ServersideOutputTransform()])
+celery_app = Celery(__name__, broker=REDIS_URL, backend=REDIS_URL)
+background_callback_manager = CeleryManager(celery_app)
+
+# app = DashProxy(__name__, transforms=[ServersideOutputTransform()])
+app = Dash(__name__)
 server = app.server
 
 # NOTE: in this example, this reference to a FigureResampler is essential to preserve
@@ -63,10 +71,12 @@ def update_info(data):
     Output('graph-id', 'figure'),
     Input("column-select", "value"),
     prevent_initial_call=True,
+    background=True,
+    manager=background_callback_manager,
 )
 def plot_graph(column):
     # Note how the replace method is used here on the global figure object
-    resampled = df.resample('600s').mean()
+    resampled = get_data().resample('600s').mean().head()
 
     return px.scatter(resampled, x=resampled.index, y=resampled[column])
 
