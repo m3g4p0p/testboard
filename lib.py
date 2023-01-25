@@ -3,6 +3,7 @@ from dash import Output
 from dash import State
 from dash import dcc
 from dash import no_update
+from dash_extensions.enrich import RedisStore
 from dash_extensions.enrich import ServersideOutput
 from dash_extensions.enrich import callback
 from plotly_resampler import FigureResampler
@@ -15,7 +16,8 @@ def GraphWithTraceUpdater(graph_id):
     trace = TraceUpdater(gdID=graph_id)
 
     @callback(
-        ServersideOutput(store, 'data'),
+        ServersideOutput(store, 'data', backend=RedisStore(
+            host='127.0.0.1', port='6379')),
         Input(graph, 'figure'),
         prevent_initial_call=True,
     )

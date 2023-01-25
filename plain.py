@@ -12,18 +12,16 @@ source: https://dash.plotly.com/sharing-data-between-callbacks:
     the variable to some value which would affect the next user's session.
 
 """
+import json
 
 import pandas as pd
-import plotly.graph_objects as go
+import plotly.express as px
 from dash import Input
 from dash import Output
 from dash import dcc
 from dash import html
 from dash_extensions.enrich import DashProxy
 from dash_extensions.enrich import ServersideOutputTransform
-from plotly_resampler import FigureResampler
-
-from lib import GraphWithTraceUpdater
 
 
 def get_data():
@@ -47,13 +45,20 @@ app.layout = html.Div(
                 style={"textAlign": "center"}),
 
         dcc.Dropdown(df.columns, id='column-select'),
-        GraphWithTraceUpdater('graph-id'),
+        dcc.Graph('graph-id'),
+        html.Pre(id='debug-info')
     ]
 )
 
 
-# ------------------------------------ DASH logic -------------------------------------
-# The callback used to construct and store the graph's data on the serverside
+@app.callback(
+    Output('debug-info', 'children'),
+    Input('graph-id', 'relayoutData')
+)
+def update_info(data):
+    return json.dumps(data, indent=2)
+
+
 @app.callback(
     Output('graph-id', 'figure'),
     Input("column-select", "value"),
@@ -62,28 +67,8 @@ app.layout = html.Div(
 def plot_graph(column):
     # Note how the replace method is used here on the global figure object
     resampled = df.resample('600s').mean()
-    fig: FigureResampler = FigureResampler()
-    fig.replace(go.Figure())
-    fig.add_trace(
-        go.Scattergl(
-            name=column,
-            showlegend=True,
-            line_width=1,
-            mode="lines+markers",
-            marker_size=4,
-            line_color="#47B5FF",
-            marker_color="#256D85",
-        ),
-        hf_x=resampled.index,
-        hf_y=resampled[column],
-    )
 
-    fig.update_layout(
-        margin={'l': 40, 'b': 40, 't': 40, 'r': 40},
-        hovermode='closest',
-    )
-
-    return fig
+    return px.scatter(resampled, x=resampled.index, y=resampled[column])
 
 
 # --------------------------------- Running the app ---------------------------------
