@@ -5,6 +5,7 @@ from dash import Output
 from dash import dcc
 from dash import html
 from dash_extensions.enrich import DashProxy
+from dash_extensions.enrich import ServersideOutput
 from dash_extensions.enrich import ServersideOutputTransform
 from plotly_resampler import EveryNthPoint
 from plotly_resampler import FigureResampler
@@ -32,8 +33,9 @@ app.layout = html.Div(
 
 
 @app.callback(
-    Output('graph-id', 'figure'),
+    ServersideOutput('store-graph-id', 'data'),
     Input("column-select", "value"),
+    memoize=True,
     # prevent_initial_call=True,
 )
 def plot_graph(column):
