@@ -11,6 +11,8 @@ from dash_extensions.enrich import RedisStore
 from dash_extensions.enrich import ServersideOutput
 from dash_extensions.enrich import ServersideOutputTransform
 
+from output import StoredOutput
+
 
 def get_data():
     return pd.read_parquet('data2022.parquet.gzip')
@@ -40,22 +42,12 @@ def update_info(data):
 
 
 @app.callback(
-    Output('graph-id', 'figure'),
-    Input('store-id', 'data'),
-    prevent_initial_call=True,
-    memoize=True,
-)
-def plot_graph(fig):
-    return fig
-
-
-@app.callback(
-    ServersideOutput('store-id', 'data'),
+    StoredOutput('graph-id', 'figure', app),
     Input("column-select", "value"),
     prevent_initial_call=True,
     memoize=True,
 )
-def update_store(column):
+def plot_graph(column):
     resampled = get_data().resample('600s').mean()
     fig = go.Figure()
 
