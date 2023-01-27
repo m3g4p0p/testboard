@@ -1,9 +1,11 @@
+from dash import MATCH
 from dash import Input
 from dash import Output
 from dash import State
 from dash import dcc
 from dash import html
 from dash import no_update
+from dash_extensions.enrich import DashProxy
 from dash_extensions.enrich import callback
 from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
@@ -23,8 +25,7 @@ def graph_with_resampler(graph_id):
         if fig is None:
             return no_update
 
-        return FigureResampler(
-            fig, default_n_shown_samples=15000)
+        return fig
 
     @callback(
         Output(trace, 'updateData'),
