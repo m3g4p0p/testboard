@@ -1,19 +1,20 @@
-from dash import MATCH
 from dash import Input
 from dash import Output
 from dash import State
 from dash import dcc
 from dash import html
 from dash import no_update
-from dash_extensions.enrich import DashProxy
 from dash_extensions.enrich import callback
-from plotly_resampler import FigureResampler
 from trace_updater import TraceUpdater
 
 
-def graph_with_resampler(graph_id):
-    graph = dcc.Graph(id=graph_id)
-    store = dcc.Store(id='store-' + graph_id)
+def make_id(type, id):
+    return locals()
+
+
+def graph_store(graph_id):
+    graph = dcc.Graph(id=make_id('graph', graph_id))
+    store = dcc.Store(id=make_id('store', graph_id))
     trace = TraceUpdater(gdID=graph_id)
 
     @callback(
@@ -21,7 +22,8 @@ def graph_with_resampler(graph_id):
         Input(store, 'data'),
         prevent_initial_call=True,
     )
-    def update_resampler(fig):
+    def update_graph(fig):
+        print('update_graph', graph_id, type(fig))
         if fig is None:
             return no_update
 
@@ -34,6 +36,7 @@ def graph_with_resampler(graph_id):
         prevent_initial_call=True,
     )
     def update_data(relayout_data, fig):
+        print('update_data', graph_id, type(fig))
         if fig is None:
             return no_update
 

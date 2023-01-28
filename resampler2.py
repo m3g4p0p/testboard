@@ -10,7 +10,8 @@ from dash_extensions.enrich import ServersideOutputTransform
 from plotly_resampler import EveryNthPoint
 from plotly_resampler import FigureResampler
 
-from lib import graph_with_resampler
+from lib import graph_store
+from lib import make_id
 
 
 def get_data():
@@ -27,13 +28,14 @@ app.layout = html.Div(
                 style={"textAlign": "center"}),
 
         dcc.Dropdown(df.columns, df.columns[0], id='column-select'),
-        graph_with_resampler('graph-id'),
+        graph_store('graph-id'),
     ]
 )
 
 
 @app.callback(
-    ServersideOutput('store-graph-id', 'data'),
+    ServersideOutput(make_id(
+        'store', 'graph-id'), 'data'),
     Input("column-select", "value"),
     memoize=True,
     # prevent_initial_call=True,
