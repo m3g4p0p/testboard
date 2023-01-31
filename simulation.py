@@ -46,11 +46,12 @@ app.layout = html.Div([
             'textAlign': 'center',
             'margin': '10px'
         },
+        accept='text/csv',
         # Allow multiple files to be uploaded
         multiple=True
     ),
     dcc.Store('data-store'),
-    dcc.Download('data-download'),
+    dcc.Download('download-data'),
     html.Div([
         html.Button('Process Data', 'process-button'),
     ], id='button-wrapper', hidden=True),
@@ -78,7 +79,8 @@ def display_contents(df, filename, date):
 
 
 @app.callback(
-    Output('data-download', 'data'),
+    Output('download-data', 'data'),
+    Output('upload-data', 'contents'),
     Input('process-button', 'n_clicks'),
     State('data-store', 'data'),
     background=True,
@@ -89,12 +91,10 @@ def display_contents(df, filename, date):
     ],
 )
 def process_data(n_clicks, data):
-    time.sleep(10)
-
     return dcc.send_data_frame(
         pd.concat(data).to_csv,
         'results.csv',
-    )
+    ), None
 
 
 @app.callback(
@@ -102,7 +102,7 @@ def process_data(n_clicks, data):
     Input('data-store', 'data'),
     prevent_initial_call=True,
 )
-def toggle_download_button(data):
+def toggle_process_button(data):
     return not bool(data)
 
 
@@ -117,6 +117,8 @@ def toggle_download_button(data):
     prevent_initial_call=True,
 )
 def update_output(list_of_contents, list_of_names, list_of_dates):
+    if list_of_contents is None:
+        return [], None
     if list_of_contents is not None:
         data = list(map(read_data, list_of_contents))
 
