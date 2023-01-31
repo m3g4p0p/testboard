@@ -4,18 +4,30 @@ import io
 from itertools import starmap
 
 import dash
+import diskcache
 import pandas as pd
+from dash import DiskcacheManager
 from dash import dash_table
 from dash import dcc
 from dash import html
 from dash.dependencies import Input
 from dash.dependencies import Output
 from dash.dependencies import State
+from dash_extensions.enrich import DashProxy
+from dash_extensions.enrich import ServersideOutput
+from dash_extensions.enrich import ServersideOutputTransform
 
 REDIS_URL = 'redis://127.0.0.1:6379'
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+cache = diskcache.Cache('./.cache')
+background_callback_manager = DiskcacheManager(cache)
+
+app = DashProxy(
+    __name__,
+    external_stylesheets=external_stylesheets,
+    transforms=[ServersideOutputTransform()],
+)
 
 app.layout = html.Div([
     dcc.Upload(
@@ -37,22 +49,23 @@ app.layout = html.Div([
         # Allow multiple files to be uploaded
         multiple=True
     ),
+    dcc.Store('data-store'),
+    html.Div([
+        dcc.Download('download-data'),
+        html.Button('Download Data', 'download-button'),
+    ], id='download-wrapper', hidden=True),
     html.Div(id='output-data-upload'),
 ])
 
 
-def parse_contents(contents, filename, date):
+def read_data(contents):
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
 
-    try:
-        df = pd.read_csv(io.StringIO(decoded.decode('utf-8')))
-    except Exception as e:
-        print(e)
-        return html.Div([
-            'There was an error processing this file.'
-        ])
+    return pd.read_csv(io.StringIO(decoded.decode('utf-8')))
 
+
+def display_contents(df, filename, date):
     return html.Div([
         html.H5(filename),
         html.H6(datetime.datetime.fromtimestamp(date)),
@@ -61,28 +74,36 @@ def parse_contents(contents, filename, date):
             df.to_dict('records'),
             [{'name': i, 'id': i} for i in df.columns]
         ),
-
-        html.Hr(),  # horizontal line
-
-        # For debugging, display the raw contents provided by the web browser
-        html.Div('Raw Content'),
-        html.Pre(contents[0:200] + '...', style={
-            'whiteSpace': 'pre-wrap',
-            'wordBreak': 'break-all'
-        })
     ])
 
 
-@app.callback(Output('output-data-upload', 'children'),
-              Input('upload-data', 'contents'),
-              State('upload-data', 'filename'),
-              State('upload-data', 'last_modified'))
+@app.callback(
+    Output('download-wrapper', 'hidden'),
+    Input('data-store', 'data'),
+    prevent_initial_call=True,
+)
+def toggle_download_button(data):
+    return not bool(data)
+
+
+@app.callback(
+    Output('output-data-upload', 'children'),
+    ServersideOutput('data-store', 'data'),
+    Input('upload-data', 'contents'),
+    State('upload-data', 'filename'),
+    State('upload-data', 'last_modified'),
+    background=True,
+    manager=background_callback_manager,
+    prevent_initial_call=True,
+)
 def update_output(list_of_contents, list_of_names, list_of_dates):
     if list_of_contents is not None:
-        children = list(starmap(parse_contents, zip(
-            list_of_contents, list_of_names, list_of_dates)))
+        data = list(map(read_data, list_of_contents))
 
-        return children
+        children = list(starmap(display_contents, zip(
+            data, list_of_names, list_of_dates)))
+
+        return children, data
 
 
 if __name__ == '__main__':

@@ -1,4 +1,5 @@
 .venv
 .vscode
+.cache
 file_system_store
 *.parquet.gzip
