@@ -43,3 +43,21 @@ def graph_store(graph_id):
         return fig.construct_update_data(relayout_data)
 
     return html.Div(children=[graph, store, trace])
+
+
+class LoggingProxy:
+    def __init__(self, obj):
+        self.obj = obj
+
+    def __getattr__(self, name):
+        value = getattr(self.obj, name)
+
+        if not callable(value):
+            return value
+
+        def wrapper(*args, **kwargs):
+            result = value(*args, **kwargs)
+            print(name, args, kwargs, result)
+            return result
+
+        return wrapper
