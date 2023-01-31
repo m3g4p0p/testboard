@@ -1,9 +1,9 @@
 import base64
 import datetime
 import io
+import time
 from itertools import starmap
 
-import dash
 import diskcache
 import pandas as pd
 from dash import DiskcacheManager
@@ -50,10 +50,10 @@ app.layout = html.Div([
         multiple=True
     ),
     dcc.Store('data-store'),
+    dcc.Download('data-download'),
     html.Div([
-        dcc.Download('download-data'),
-        html.Button('Download Data', 'download-button'),
-    ], id='download-wrapper', hidden=True),
+        html.Button('Process Data', 'process-button'),
+    ], id='button-wrapper', hidden=True),
     html.Div(id='output-data-upload'),
 ])
 
@@ -78,7 +78,27 @@ def display_contents(df, filename, date):
 
 
 @app.callback(
-    Output('download-wrapper', 'hidden'),
+    Output('data-download', 'data'),
+    Input('process-button', 'n_clicks'),
+    State('data-store', 'data'),
+    background=True,
+    manager=background_callback_manager,
+    prevent_initial_call=True,
+    running=[
+        (Output('process-button', 'disabled'), True, False)
+    ],
+)
+def process_data(n_clicks, data):
+    time.sleep(10)
+
+    return dcc.send_data_frame(
+        pd.concat(data).to_csv,
+        'results.csv',
+    )
+
+
+@app.callback(
+    Output('button-wrapper', 'hidden'),
     Input('data-store', 'data'),
     prevent_initial_call=True,
 )
