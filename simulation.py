@@ -47,13 +47,15 @@ app.layout = html.Div([
             'margin': '10px'
         },
         accept='text/csv',
-        # Allow multiple files to be uploaded
-        multiple=True
+        multiple=True,
     ),
-    dcc.Store('data-store'),
-    dcc.Download('download-data'),
+    dcc.Loading([
+        dcc.Store('data-store'),
+        dcc.Download('download-data'),
+    ]),
     html.Div([
         html.Button('Process Data', 'process-button'),
+        html.Div(html.Progress(id='progress-bar', value='0')),
     ], id='button-wrapper', hidden=True),
     html.Div(id='output-data-upload'),
 ])
@@ -89,8 +91,18 @@ def display_contents(df, filename, date):
     running=[
         (Output('process-button', 'disabled'), True, False)
     ],
+    progress=[
+        Output('progress-bar', 'value'),
+        Output('progress-bar', 'max'),
+    ],
 )
-def process_data(n_clicks, data):
+def process_data(set_progress, n_clicks, data):
+    total = len(data) * 10
+
+    for i in range(total + 1):
+        set_progress((str(i), str(total)))
+        time.sleep(1)
+
     return dcc.send_data_frame(
         pd.concat(data).to_csv,
         'results.csv',
@@ -112,20 +124,18 @@ def toggle_process_button(data):
     Input('upload-data', 'contents'),
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
-    background=True,
-    manager=background_callback_manager,
     prevent_initial_call=True,
 )
 def update_output(list_of_contents, list_of_names, list_of_dates):
     if list_of_contents is None:
         return [], None
-    if list_of_contents is not None:
-        data = list(map(read_data, list_of_contents))
 
-        children = list(starmap(display_contents, zip(
-            data, list_of_names, list_of_dates)))
+    data = list(map(read_data, list_of_contents))
 
-        return children, data
+    children = list(starmap(display_contents, zip(
+        data, list_of_names, list_of_dates)))
+
+    return children, data
 
 
 if __name__ == '__main__':
