@@ -1,11 +1,15 @@
 import base64
 import datetime
 import io
+import os
 import time
 from itertools import starmap
 
+import celery
 import diskcache
+import dotenv
 import pandas as pd
+from dash import CeleryManager
 from dash import DiskcacheManager
 from dash import dash_table
 from dash import dcc
@@ -14,20 +18,36 @@ from dash.dependencies import Input
 from dash.dependencies import Output
 from dash.dependencies import State
 from dash_extensions.enrich import DashProxy
+from dash_extensions.enrich import MultiplexerTransform
 from dash_extensions.enrich import ServersideOutput
 from dash_extensions.enrich import ServersideOutputTransform
 
+dotenv.load_dotenv()
 REDIS_URL = 'redis://127.0.0.1:6379'
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
-cache = diskcache.Cache('./.cache')
-background_callback_manager = DiskcacheManager(cache)
+
+def get_manager():
+    redis_url = os.getenv('REDIS_URL')
+
+    if not redis_url:
+        cache = diskcache.Cache('./.cache')
+        return DiskcacheManager(cache)
+
+    celery_app = celery.Celery(
+        __name__, broker=redis_url, backend=redis_url)
+
+    return CeleryManager(celery_app)
+
 
 app = DashProxy(
     __name__,
+    background_callback_manager=get_manager(),
     external_stylesheets=external_stylesheets,
-    transforms=[ServersideOutputTransform()],
+    transforms=[ServersideOutputTransform(), MultiplexerTransform()],
 )
+
+server = app.server
 
 app.layout = html.Div([
     dcc.Upload(
@@ -50,7 +70,7 @@ app.layout = html.Div([
         multiple=True,
     ),
     dcc.Loading([
-        dcc.Store('data-store'),
+        dcc.Store('store-data-upload'),
         dcc.Download('download-data'),
     ]),
     html.Div([
@@ -84,9 +104,8 @@ def display_contents(df, filename, date):
     Output('download-data', 'data'),
     Output('upload-data', 'contents'),
     Input('process-button', 'n_clicks'),
-    State('data-store', 'data'),
+    State('store-data-upload', 'data'),
     background=True,
-    manager=background_callback_manager,
     prevent_initial_call=True,
     running=[
         (Output('process-button', 'disabled'), True, False)
@@ -101,7 +120,7 @@ def process_data(set_progress, n_clicks, data):
 
     for i in range(total + 1):
         set_progress((str(i), str(total)))
-        time.sleep(1)
+        time.sleep(0)
 
     return dcc.send_data_frame(
         pd.concat(data).to_csv,
@@ -111,7 +130,7 @@ def process_data(set_progress, n_clicks, data):
 
 @app.callback(
     Output('button-wrapper', 'hidden'),
-    Input('data-store', 'data'),
+    Input('store-data-upload', 'data'),
     prevent_initial_call=True,
 )
 def toggle_process_button(data):
@@ -120,7 +139,7 @@ def toggle_process_button(data):
 
 @app.callback(
     Output('output-data-upload', 'children'),
-    ServersideOutput('data-store', 'data'),
+    ServersideOutput('store-data-upload', 'data'),
     Input('upload-data', 'contents'),
     State('upload-data', 'filename'),
     State('upload-data', 'last_modified'),
