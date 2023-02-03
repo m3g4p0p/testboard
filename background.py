@@ -1,9 +1,10 @@
 import time
+from urllib.parse import urlsplit
 
 import pandas as pd
 from celery import Celery
-from celery import _state
 from dash import CeleryManager
+from dash import ClientsideFunction
 from dash import Dash
 from dash import DiskcacheManager
 from dash import dash_table
@@ -14,24 +15,31 @@ from dash.dependencies import Input
 from dash.dependencies import Output
 from dash.dependencies import State
 from dash_extensions.enrich import DashProxy
+from dash_extensions.enrich import NoOutputTransform
 from dash_extensions.enrich import RedisStore
 from dash_extensions.enrich import ServersideOutput
 from dash_extensions.enrich import ServersideOutputTransform
+from redis import Redis
 
 REDIS_URL = 'redis://127.0.0.1:6379'
+redis_url = urlsplit(REDIS_URL)
 
 
-def get_enqueued():
-    if celery_app is None:
+def value_count(data):
+    if not data:
         return 0
 
+    return sum(map(len, data.values()))
+
+
+def get_queue():
     inspect = celery_app.control.inspect()
-    active = inspect.active()
 
-    if not active:
-        return 0
-
-    return sum(map(len, active.values()))
+    return {
+        'active': value_count(inspect.active()),
+        'reserved': value_count(inspect.reserved()),
+        'scheduled': value_count(inspect.scheduled()),
+    }
 
 
 def get_stats():
@@ -54,6 +62,7 @@ def make_celery(app):
     return celery
 
 
+redis = Redis(redis_url.hostname, redis_url.port)
 celery_app = Celery(__name__, broker=REDIS_URL, backend=REDIS_URL)
 manager = CeleryManager(celery_app)
 
@@ -62,30 +71,54 @@ app = DashProxy(
     background_callback_manager=manager,
     transforms=[ServersideOutputTransform(
         backend=RedisStore(host=REDIS_URL)
-    )],
+    ), NoOutputTransform()],
 )
 
 # celery_app = make_celery(app.server)
 # manager = CeleryManager(celery_app)
 # app._background_manager = manager
-# server = app.server
+server = app.server
+assert server is not None
 
 app.layout = html.Div([
     html.Button('Click me', id='button'),
+    html.Progress(id='progress', value='0', style={
+        'display': 'block'}),
     html.Pre(['Hello'], id='queue-output'),
     html.Pre([''], id='output'),
     dcc.Store('store'),
-    dcc.Interval(id='interval', interval=500, n_intervals=0),
+    dcc.Interval(
+        'interval',
+        interval=1000,
+        n_intervals=0,
+        max_intervals=100,
+    )
 ])
 
 
-@app.callback(
+app.clientside_callback(
+    ClientsideFunction(
+        namespace='cx',
+        function_name='pollQueue',
+    ),
     Output('queue-output', 'children'),
+    # Input('interval', 'n_intervals'),
     Input('button', 'n_clicks'),
-    State('interval', 'n_intervals'),
 )
-def update_queue(n_clicks, n_intervals):
-    return f'Clicks: {n_intervals}'
+
+
+@app.callback(
+    Input('button', 'n_clicks'),
+)
+def handle_click(n):
+    pass
+
+
+@app.callback(
+    Input('interval', 'n_intervals'),
+)
+def handle_interval(n):
+    pass
 
 
 @app.callback(
@@ -99,14 +132,32 @@ def update_output(data):
 @app.callback(
     Output('store', 'data'),
     Input('button', 'n_clicks'),
+    # Input('interval', 'n_intervals'),
     background=True,
     prevent_initial_call=True,
+    progress=[
+        Output('progress', 'value'),
+        Output('progress', 'max'),
+    ],
 )
-def update_data(n_clicks):
-    time.sleep(1)
+def update_data(set_progress, n):
+    for i in range(n + 1):
+        set_progress((str(i), str(n)))
+        time.sleep(1)
+
     return pd.DataFrame({
-        'n_clicks': range(n_clicks),
+        'n_clicks': range(n),
     }).to_dict()
+
+
+@server.route('/celery-queue')
+def celery_queue():
+    return get_queue()
+
+
+@server.route('/celery-stats')
+def celery_stats():
+    return get_stats() or {}
 
 
 app.register_celery_tasks()

@@ -2,5 +2,6 @@
 .vscode
 .cache
 .env
+node_modules
 file_system_store
 *.parquet.gzip
