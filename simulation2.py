@@ -2,6 +2,7 @@ import base64
 import datetime
 import io
 import os
+import sys
 import time
 
 import celery
@@ -44,31 +45,55 @@ app = DashProxy(
 server = app.server
 
 app.layout = html.Div([
-    dcc.Upload(
-        id='upload-data',
-        children=html.Div([
-            'Drag and Drop or ',
-            html.A('Select Files')
-        ]),
-        style={
-            'width': '100%',
-            'height': '60px',
-            'lineHeight': '60px',
-            'borderWidth': '1px',
-            'borderStyle': 'dashed',
-            'borderRadius': '5px',
-            'textAlign': 'center',
-            'margin': '10px'
-        },
-        accept='text/csv',
-    ),
-    dcc.Loading([
-        dcc.Store('store-data-result'),
-        dcc.Download('download-data'),
-    ]),
-    html.Div(id='output-data-upload'),
-    html.Div(id='output-data-result'),
+    html.Button('Show outlet', id='show-outlet'),
+    html.Div(id='outlet')
 ])
+
+
+@app.callback(
+    Output('outlet', 'children'),
+    Input('show-outlet', 'n_clicks'),
+    prevent_initial_call=True,
+)
+def create_layout(n_clicks):
+    print(n_clicks)
+    if 'celery' in sys.argv[0]:
+        return None
+
+    inspect = celery_app.control.inspect()
+    print(inspect.stats())
+
+    for prop in ('active', 'scheduled', 'reserved'):
+        tasks = getattr(inspect, prop)()
+        if tasks and any(tasks.values()):
+            return html.Div('Please try again later')
+
+    return html.Div([
+        dcc.Upload(
+            id='upload-data',
+            children=html.Div([
+                'Drag and Drop or ',
+                html.A('Select Files')
+            ]),
+            style={
+                'width': '100%',
+                'height': '60px',
+                'lineHeight': '60px',
+                'borderWidth': '1px',
+                'borderStyle': 'dashed',
+                'borderRadius': '5px',
+                'textAlign': 'center',
+                'margin': '10px'
+            },
+            accept='text/csv',
+        ),
+        dcc.Loading([
+            dcc.Store('store-data-result'),
+            dcc.Download('download-data'),
+        ]),
+        html.Div(id='output-data-upload'),
+        html.Div(id='output-data-result'),
+    ])
 
 
 def read_file_contents(contents):
@@ -126,7 +151,7 @@ def process_data(set_progress, n_clicks, contents):
 
     for i in range(total + 1):
         set_progress((str(i), str(total)))
-        time.sleep(0.001)
+        time.sleep(1)
 
     return data, None
 
