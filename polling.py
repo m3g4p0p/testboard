@@ -41,6 +41,7 @@ def celery_init_app(app: Flask) -> Celery:
     celery_app.set_default()
     return celery_app
 
+
 app = DashProxy(
     __name__,
     transforms=[ServersideOutputTransform(
@@ -56,6 +57,7 @@ celery = celery_init_app(server)
 app.layout = html.Div([
     html.Button('Start', 'start'),
     html.Progress(id='progress', value='0'),
+    html.Pre(id='status'),
     html.Pre(id='result'),
     dcc.Interval('poll', max_intervals=0),
     dcc.Store('task-id'),
@@ -85,16 +87,18 @@ def trigger_process(n):
     Output('poll', 'max_intervals'),
     Output('progress', 'value'),
     Input('task-id', 'data'),
+    Input('task-result', 'data'),
 )
-def start_polling(data):
-    if not data:
+def start_polling(task_id, task_result):
+    if not task_id or task_result:
         return 0, '0'
 
     return -1, None
 
 
 @app.callback(
-    Output('result', 'children'),
+    Output('status', 'children'),
+    Output('task-result', 'data'),
     Input('poll', 'n_intervals'),
     State('task-id', 'data'),
     prevent_initial_call=True,
@@ -102,7 +106,18 @@ def start_polling(data):
 def poll_process(n, data):
     endpoint_url = get_endpoint_url('get_process', **data)
     response = requests.get(endpoint_url)
-    return response.text
+    json_data = response.json()
+    result = json_data.get('result', no_update)
+
+    return response.text, result
+
+
+@app.callback(
+    Output('result', 'children'),
+    Input('task-result', 'data')
+)
+def update_result(data):
+    return data
 
 
 @shared_task(name='process')
@@ -120,11 +135,14 @@ def post_process():
 @server.get('/process/<task_id>')
 def get_process(task_id):
     result = AsyncResult(task_id)
+    data = dict(status=result.status)
 
-    return dict(
-        status=result.status,
-        result=result.result if result.successful() else None,
-    )
+    if result.successful():
+        data['result'] = result.result
+    elif result.failed():
+        data['reason'] = str(result.result)
+
+    return data
 
 
 if __name__ == '__main__':
