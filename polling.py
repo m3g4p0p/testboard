@@ -85,20 +85,20 @@ def trigger_process(n):
 
 @app.callback(
     Output('poll', 'max_intervals'),
-    Output('progress', 'value'),
     Input('task-id', 'data'),
     Input('task-result', 'data'),
 )
 def start_polling(task_id, task_result):
     if not task_id or task_result:
-        return 0, '0'
+        return 0
 
-    return -1, None
+    return -1
 
 
 @app.callback(
-    Output('status', 'children'),
     Output('task-result', 'data'),
+    Output('status', 'children'),
+    Output('progress', 'value'),
     Input('poll', 'n_intervals'),
     State('task-id', 'data'),
     prevent_initial_call=True,
@@ -109,7 +109,13 @@ def poll_process(n, data):
     json_data = response.json()
     result = json_data.get('result', no_update)
 
-    return response.text, result
+    if result is not no_update:
+        progress = '1'
+    else:
+        progress = json_data.get('progress')
+        progress = progress and str(progress)
+
+    return result, response.text, progress
 
 
 @app.callback(
@@ -120,9 +126,14 @@ def update_result(data):
     return data
 
 
-@shared_task(name='process')
-def process():
-    time.sleep(10)
+@shared_task(name='process', bind=True)
+def process(self: Task, n=10):
+    for i in range(n):
+        time.sleep(1)
+
+        self.update_state(
+            state='PROGRESS', meta=(i + 1) / n)
+
     return 'Hello world!'
 
 
@@ -137,10 +148,13 @@ def get_process(task_id):
     result = AsyncResult(task_id)
     data = dict(status=result.status)
 
+    if isinstance(result.info, float):
+        data['progress'] = result.info
+
     if result.successful():
         data['result'] = result.result
     elif result.failed():
-        data['reason'] = str(result.result)
+        data['reason'] = repr(result.result)
 
     return data
 
