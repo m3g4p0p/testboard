@@ -82,7 +82,11 @@ def get_endpoint_url(endpoint, **values):
 )
 def trigger_process(n):
     endpoint_url = get_endpoint_url('post_process')
-    response = requests.post(endpoint_url)
+    with open('simulation_short.csv', 'rb') as f:
+        response = requests.post(endpoint_url, files={
+            'file': f
+        })
+
     response.raise_for_status()
 
     return response.json(), None
@@ -146,19 +150,24 @@ def update_error(errors):
 
 
 @shared_task(name='process', bind=True)
-def process(self: Task, n=10):
-    for i in range(n):
-        time.sleep(1)
+def process(self: Task, contents: str):
+    lines = contents.splitlines()
+    total = len(lines)
+
+    for i, line in enumerate(lines):
+        time.sleep(1 / total)
 
         self.update_state(
-            state='PROGRESS', meta=(i + 1) / n)
+            state='PROGRESS', meta=(i + 1) / total)
 
-    return 'Hello world!'
+    return contents
 
 
 @flask_app.post('/process')
 def post_process():
-    task = process.delay()
+    contents = request.files['file'].stream.read()
+    task = process.delay(contents.decode('utf-8'))
+
     return dict(task_id=task.id)
 
 

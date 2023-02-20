@@ -5,3 +5,4 @@
 node_modules
 file_system_store
 *.parquet.gzip
+*.csv
