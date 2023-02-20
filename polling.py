@@ -42,17 +42,18 @@ def celery_init_app(app: Flask) -> Celery:
     return celery_app
 
 
+flask_app = Flask(__name__)
+
 app = DashProxy(
     __name__,
+    server=flask_app,
     transforms=[ServersideOutputTransform(
         backend=RedisStore(host=REDIS_URL)
     ), NoOutputTransform()],
 )
 
 
-server = app.server
-assert server is not None
-celery = celery_init_app(server)
+celery = celery_init_app(flask_app)
 
 app.layout = html.Div([
     html.Button('Start', 'start'),
@@ -60,8 +61,11 @@ app.layout = html.Div([
     html.Pre(id='status'),
     html.Pre(id='result'),
     dcc.Interval('poll', max_intervals=0),
-    dcc.Store('task-id'),
-    dcc.Store('task-result'),
+    dcc.Store('store-task-id'),
+    dcc.Store('store-task-result'),
+    dcc.Store('store-error-request'),
+    dcc.Store('store-error-polling'),
+    dcc.Store('store-error-collector'),
 ])
 
 
@@ -71,7 +75,8 @@ def get_endpoint_url(endpoint, **values):
 
 
 @app.callback(
-    Output('task-id', 'data'),
+    Output('store-task-id', 'data'),
+    Output('store-error-request', 'data'),
     Input('start', 'n_clicks'),
     prevent_initial_call=True,
 )
@@ -80,27 +85,29 @@ def trigger_process(n):
     response = requests.post(endpoint_url)
     response.raise_for_status()
 
-    return response.json()
+    return response.json(), None
 
 
 @app.callback(
     Output('poll', 'max_intervals'),
-    Input('task-id', 'data'),
-    Input('task-result', 'data'),
+    Input('store-task-id', 'data'),
+    Input('store-task-result', 'data'),
+    Input('store-error-collector', 'data'),
 )
-def start_polling(task_id, task_result):
-    if not task_id or task_result:
+def start_polling(task_id, task_result, errors):
+    if not task_id or task_result or any(errors):
         return 0
 
     return -1
 
 
 @app.callback(
-    Output('task-result', 'data'),
+    Output('store-task-result', 'data'),
+    Output('store-error-polling', 'data'),
     Output('status', 'children'),
     Output('progress', 'value'),
     Input('poll', 'n_intervals'),
-    State('task-id', 'data'),
+    State('store-task-id', 'data'),
     prevent_initial_call=True,
 )
 def poll_process(n, data):
@@ -115,15 +122,27 @@ def poll_process(n, data):
         progress = json_data.get('progress')
         progress = progress and str(progress)
 
-    return result, response.text, progress
+    return result, None, response.text, progress
 
 
 @app.callback(
     Output('result', 'children'),
-    Input('task-result', 'data')
+    Input('store-task-result', 'data')
 )
 def update_result(data):
     return data
+
+
+@app.callback(
+    Output('store-error-collector', 'data'),
+    inputs=dict(errors=[
+        Input('store-error-request', 'data'),
+        Input('store-error-request', 'data'),
+    ])
+)
+def update_error(errors):
+    print(errors)
+    return errors
 
 
 @shared_task(name='process', bind=True)
@@ -137,13 +156,13 @@ def process(self: Task, n=10):
     return 'Hello world!'
 
 
-@server.post('/process')
+@flask_app.post('/process')
 def post_process():
     task = process.delay()
     return dict(task_id=task.id)
 
 
-@server.get('/process/<task_id>')
+@flask_app.get('/process/<task_id>')
 def get_process(task_id):
     result = AsyncResult(task_id)
     data = dict(status=result.status)
