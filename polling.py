@@ -21,6 +21,7 @@ from dash_extensions.enrich import ServersideOutputTransform
 from flask import Flask
 from flask import request
 from flask import url_for
+from requests.exceptions import HTTPError
 
 REDIS_URL = 'redis://127.0.0.1:6379'
 
@@ -43,6 +44,7 @@ def celery_init_app(app: Flask) -> Celery:
 
 
 flask_app = Flask(__name__)
+flask_app.config['MAX_CONTENT_LENGTH'] = 16
 
 app = DashProxy(
     __name__,
@@ -59,6 +61,7 @@ app.layout = html.Div([
     html.Button('Start', 'start'),
     html.Progress(id='progress', value='0'),
     html.Pre(id='status'),
+    html.Pre(id='errors'),
     html.Pre(id='result'),
     dcc.Interval('poll', max_intervals=0),
     dcc.Store('store-task-id'),
@@ -87,7 +90,10 @@ def trigger_process(n):
             'file': f
         })
 
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except HTTPError as e:
+        return None, repr(e)
 
     return response.json(), None
 
@@ -96,7 +102,7 @@ def trigger_process(n):
     Output('poll', 'max_intervals'),
     Input('store-task-id', 'data'),
     Input('store-task-result', 'data'),
-    Input('store-error-collector', 'data'),
+    Input('errors', 'children'),
 )
 def start_polling(task_id, task_result, errors):
     if not task_id or task_result or any(errors):
@@ -126,7 +132,7 @@ def poll_process(n, data):
         progress = json_data.get('progress')
         progress = progress and str(progress)
 
-    return result, None, response.text, progress
+    return result, None, response.text[:100], progress
 
 
 @app.callback(
@@ -139,14 +145,14 @@ def update_result(data):
 
 @app.callback(
     Output('store-error-collector', 'data'),
+    Output('errors', 'children'),
     inputs=dict(errors=[
         Input('store-error-request', 'data'),
         Input('store-error-request', 'data'),
     ])
 )
 def update_error(errors):
-    print(errors)
-    return errors
+    return errors, '\n'.join(filter(None, errors))
 
 
 @shared_task(name='process', bind=True)
